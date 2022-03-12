@@ -1,1 +1,2 @@
-# P4-Geom-DL
+# Geometric deep learning for quantitative analysis of stone tool reduction sequences
+Refitted core reduction nodules pose a promising source of information for understanding of variability in stone tool production — and thus cultural transmission — among prehistoric populations. This project targets the automatic detection of points of impact on lithic flakes respectively snapshots of the core sequence. To this end, state-of-the-art approaches form the field of geometric deep learning are to be adapted and experimentally evaluated.
