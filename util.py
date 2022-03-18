@@ -21,15 +21,19 @@ def mesh_to_data(mesh):
     
     return transform(graph)
 
-def label_to_filename_map(dataset):
+def get_labels(dataset):
     poi = plys_to_poi_filename[dataset]
-    ply_path = Path(f'/mnt/materials/SIRF/MathPlusBerlin/DATA/LihicFlakesPOI/3DModels_plys/{dataset}_plys/')
     POI_file = Path(f'/mnt/materials/SIRF/MathPlusBerlin/DATA/LihicFlakesPOI/POIs_csv/{poi}_POIs_Point.csv')
     with open(POI_file) as f:
         sheet = list( csv.reader(f) )
     labels = [re.split(r'_|-|\s', ln[1])[0] for ln in sheet[1:]]
-    POI = np.array(sheet[1:])[:,2:5].astype(float)
     
+    return labels
+    
+def label_to_filename_map(dataset):
+    ply_path = Path(f'/mnt/materials/SIRF/MathPlusBerlin/DATA/LihicFlakesPOI/3DModels_plys/{dataset}_plys/')
+    
+    labels = get_labels(dataset)
     label_int = {l: int(l[1:]) for l in labels}
     label_int_to_filename = defaultdict(list)
     for p in ply_path.glob('*.ply'):
@@ -37,4 +41,13 @@ def label_to_filename_map(dataset):
             label_int_to_filename[int(re.findall(r'\d+', p.name)[0])].append(p.name)
             
     return {l: label_int_to_filename[label_int[l]] for l in labels}
+
+def label_to_poi_map(dataset):
+    poi = plys_to_poi_filename[dataset]
+    POI_file = Path(f'/mnt/materials/SIRF/MathPlusBerlin/DATA/LihicFlakesPOI/POIs_csv/{poi}_POIs_Point.csv')
+    labels = get_labels(dataset)
+    with open(POI_file) as f:
+        sheet = list( csv.reader(f) )
+    POI = np.array(sheet[1:])[:,2:5].astype(float)
     
+    return dict(zip(labels, torch.tensor(POI, dtype=torch.float32)))
