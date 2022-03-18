@@ -2,6 +2,8 @@ from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 import torch_geometric.transforms as T
 import torch
+import torch.nn as nn
+import torch_geometric.nn as gnn
 import pyvista as pv
 from pathlib import Path
 import csv
@@ -133,6 +135,7 @@ def generate_cone_data_objects(num_cones=100):
     result = []
     for cone, apex in zip(cones, apexes):
         mesh = mesh_to_data_object(cone)
-        mesh.y = apex
+        mesh.x = torch.ones((cone.points.shape[0], 1))
+        mesh.y = torch.tensor([1] + [0] * 6, dtype=torch.float32)
         result.append(mesh)
     return result
