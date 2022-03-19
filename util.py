@@ -1,3 +1,21 @@
+# First version: 19th of March 2022
+# Author: Felix Herter, Nikolas Tapia
+# Copyright 2022 Weierstrass Institute
+# Copyright 2022 Zuse Institute Berlin
+# 
+#    This software was developed during the Math+ "Maths meets Image" hackathon 2022.
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+# 
+#        http://www.apache.org/licenses/LICENSE-2.0
+# 
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+
 from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 import torch_geometric.transforms as T
@@ -15,20 +33,32 @@ from collections import defaultdict
 plys_to_poi_filename = { 'Bohunician': 'Bohunician', 'PunchedBlade': 'PunchedBlade', 'Shea_Levallois': 'SheaLevallois'}
 base_path = Path('/mnt/materials/SIRF/MathPlusBerlin/DATA/LihicFlakesPOI/')
 
-def mesh_to_data_object(mesh):
+def mesh_to_data_object(mesh, downsample=0.95): #make `downsample` visible from the outside
+    mesh = mesh.decimate(downsample)
     pos = torch.tensor(mesh.points, dtype=torch.float32)
     face = torch.tensor(mesh.faces.reshape(-1,4)[:,1:].T, dtype=torch.long)
     norm = torch.tensor(mesh.point_normals, dtype=torch.float32)
     
-    transform = T.Compose([T.FaceToEdge(remove_faces=False), T.PointPairFeatures()])
+    transform = T.FaceToEdge()
     graph = Data(pos=pos, face=face, norm=norm)
-    
     return transform(graph)
+
+def generate_targets(graph, poi, std=1):
+    graph.y = torch.exp( -torch.linalg.norm(poi - graph.pos, axis=1) ** 2 / (2 * std) )
+    graph.y = graph.y / graph.y.sum()
+    graph.x = torch.ones((graph.y.shape[0],1))
+    graph.y = torch.ones((graph.y.shape[0],1)) / graph.y.sum()
+    
+    return graph
 
 def label_to_data_object(dataset, label):
     filename = label_to_filename_map(dataset)[label][0]
     mesh = pv.read(base_path / f'3DModels_plys/{dataset}_plys/{filename}')
-    return mesh_to_data_object(mesh)
+    data = mesh_to_data_object(mesh)
+    poi = label_to_poi_map(dataset)[label]
+    generate_targets(data, poi)
+    
+    return data
     
 def get_labels(dataset):
     poi = plys_to_poi_filename[dataset]
@@ -67,14 +97,11 @@ def label_to_data_object_map(dataset):
     
     return {l: label_to_data_object(dataset, l) for l in labels}
 
-def get_dataloader(dataset, **kwargs):
+def get_data_list(dataset):
     pois = label_to_poi_map(dataset)
     datas = label_to_data_object_map(dataset)
     
-    for l, d in datas.items():
-        d.y = pois[l]
-        
-    return DataLoader(list(datas.values()), **kwargs)
+    return list(datas.values())
 
 # Dummy Data generation 
 
@@ -103,6 +130,13 @@ def generate_cone_meshes(num_cones=100):
     height = 1
 
     cones = [pv.Cone(center=center, direction=d, height=height, radius=radius) for d in directions]
+#    cones2 = [pv.Cone(center=center-d * height * 1.3/2, direction=-d, height=0.3 * height, radius=radius) for d in directions]
+ #   cones = []
+    for (cone, d) in zip(cones, directions):
+        cone.points = np.vstack((cone.points, -d * height * 0.8))
+        new_faces = cone.faces[7:]
+        cone.faces = np.concatenate([new_faces, np.array([3, 7, 2, 1, 3, 7, 3, 2, 3, 7, 4, 3, 3, 7, 5, 4, 3, 7, 6, 5, 3, 7, 1, 6])])
+        
     apexes = [center + d * height / 2 for d in directions]
 
     return [cones, apexes]
@@ -134,8 +168,8 @@ def generate_cone_data_objects(num_cones=100):
     
     result = []
     for cone, apex in zip(cones, apexes):
-        mesh = mesh_to_data_object(cone)
+        mesh = mesh_to_data_object(cone, 0)
         mesh.x = torch.ones((cone.points.shape[0], 1))
-        mesh.y = torch.tensor([1] + [0] * 6, dtype=torch.float32)
+        mesh.y = torch.tensor([1] + [0] * (mesh.pos.shape[0] - 1), dtype=torch.float32)
         result.append(mesh)
     return result
