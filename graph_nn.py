@@ -28,11 +28,11 @@ from tqdm import tqdm_notebook
 class GNN(nn.Module):
     def __init__(self, in_dim, out_dim, **kwargs):
         super().__init__(**kwargs)
-        self.mlp1 = pyg.nn.MLP([in_dim, 32, 32])
-        self.mlp2 = pyg.nn.MLP([36, 32, 32])
-        self.mlp3 = pyg.nn.MLP([36, 32, 32])
-        self.mlp = pyg.nn.MLP([32, 32, 32])
-        self.out_mlp = pyg.nn.MLP([32, 32, out_dim])
+        self.mlp1 = pyg.nn.MLP([in_dim, 8, 16])
+        self.mlp2 = pyg.nn.MLP([20, 32, 16])
+        self.mlp3 = pyg.nn.MLP([20, 32, 16])
+        self.mlp = pyg.nn.MLP([16, 32, 16])
+        self.out_mlp = pyg.nn.MLP([16, 32, out_dim])
         self.conv1 = gnn.PPFConv(self.mlp1, self.mlp)
         self.conv2 = gnn.PPFConv(self.mlp2, self.mlp)
         self.conv3 = gnn.PPFConv(self.mlp3, self.out_mlp)
@@ -45,7 +45,7 @@ class GNN(nn.Module):
         x = F.relu(x)
         x = self.conv3(x, pos, norm, edge_index)
         x = F.relu(x)
-        return F.softmax(x, dim=0)
+        return F.softmax(x.flatten(), dim=0)
 
 class ShallowGNN(nn.Module):
     def __init__(self, in_dim, out_dim, **kwargs):
@@ -58,7 +58,7 @@ class ShallowGNN(nn.Module):
         x, pos, norm, edge_index = graph.x, graph.pos, graph.norm, graph.edge_index
         x = self.conv1(x, pos, norm, edge_index)
         x = F.relu(x)
-        return F.softmax(x, dim=0)
+        return F.softmax(x.flatten(), dim=0)
     
 
 def train_loop(dataloader, model, optim, loss_fn, device):
@@ -66,7 +66,7 @@ def train_loop(dataloader, model, optim, loss_fn, device):
     for k, batch in enumerate(dataloader):
         batch.to(device=device)
         pred = model(batch)
-        loss = loss_fn(pred[:,0], batch.y)
+        loss = loss_fn(pred, batch.y)
         
         optim.zero_grad()
         loss.backward()
